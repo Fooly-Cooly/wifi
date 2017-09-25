@@ -14,6 +14,7 @@ ECHO.
 	REM "Microsoft Virtual WiFi Miniport Adapter" will show in Network Connections
 	REM ^(Run ncpa.cpl in a run/command prompt)
 
+	REM Check for admin permissions
 	NET FILE >NUL 2>&1
 	IF NOT "%ERRORLEVEL%" == "0" (
 		ECHO Administrator permission is required^!
@@ -23,6 +24,7 @@ ECHO.
 		GOTO :EXIT
 	)
 
+	REM Display help
 	IF "%~1" == "" GOTO :MENU
 	CALL :%~1 2>NUL
 	IF "%ERRORLEVEL%" == "1" (
@@ -31,9 +33,8 @@ ECHO.
 		ECHO.
 
 		ECHO Copyright (C) 2013 Kingron <kingron@163.com>
-		ECHO Edits Sub-Licensed by Fooly Cooly
-		ECHO Licensed with MIT https://opensource.org/licenses/MIT
-		ECHO Sub-Licensed with GPL v3 https://www.gnu.org/licenses/gpl-3.0.txt
+		ECHO Modified by Fooly Cooly
+		ECHO Licensed with GPL v3 https://www.gnu.org/licenses/gpl-3.0.txt
 		ECHO.
 	)
 	PAUSE
@@ -60,10 +61,10 @@ ECHO.
 
 	REM Clear the value from last selection
 	CALL SET SLC=
-	
+
 	REM Prompt user for input
 	SET /p SLC=Select a number and press ^<ENTER^>:
-	
+
 	REM Call user chosen label, pause and reshow menu
 	CALL :%SLC% 2>NUL
 	IF "%SLC%" == "7" GOTO :EXIT
@@ -74,36 +75,45 @@ ECHO.
 	:CREATE
 		ECHO.
 		ECHO NOTE:
-		ECHO The "create virtual WLAN" command only run once if success, you needn't run it
-		ECHO again unless you want to change the SSID or password!
+		ECHO Only run "Create virtual WLAN" command once if successful.
+		ECHO You needn't run it again unless you want to change the name or password!
 		ECHO.
-
-		REM if you want to use this for other language, you should change below tags.
-		REM CP 936 = Chinese, 437 = English
 		ECHO Check your WIFI adapter...
-		SET supported=0
-		NETSH wlan show drive | find "Ö§³ÖµÄ³ÐÔØÍøÂç" | find "ÊÇ"
-		IF %errorlevel%==0 set supported=1
-		NETSH wlan show drive | find "Hosted network supported" | find "Yes"
-		IF %errorlevel%==0 set supported=1
-		IF %supported% equ 1 (
-			ECHO Congratulation! You WIFI adapter support Ad-Hoc mode.
-			ECHO Please follow step to finish the setup.
-		) ELSE (
-			ECHO Oops! You WIFI adapter can't support Ad-Hoc mode^(hostednetwork^).
-			EXIT /b 1
-		)
-		IF "%_name%"=="" SET _name=wlan
-		SET /p _name=Please input the virtual AP name(default: %_name%):
-		SET /p _password=Please input the password^(required, length: 8~63^):
-		NETSH wlan set hostednetwork mode=allow ssid=%_name% key=%_password%
-		IF "%errorlevel%"=="0" ECHO Setup the WLAN success.
-		NETSH wlan start hostednetwork
-		IF "%errorlevel%"=="0" (
-			ECHO Startup WLAN success, enjoy it!
-			ECHO Please goto control panel, network connections, share the internet connection
-			ECHO to virtual WIFI adapter.
-		) ELSE ECHO Error: Started WLAN failure.
+
+		REM Get current language code page
+		FOR /F "tokens=2 delims=:." %%A IN ('CHCP') DO SET CP=%%A
+
+		REM CP 437 = English
+		IF "%CP%" == "437" NETSH wlan show drive | find "Hosted network supported" | find "Yes"
+
+		REM CP 936 = Chinese, 
+		IF "%CP%" == "936" NETSH wlan show drive | find "æ”¯æŒçš„æ‰¿è½½ç½‘ç»œ" | find "æ˜¯"
+
+		IF "%ERRORLEVEL%" == "0" (
+			ECHO Congratulations! Your WiFi adapter supports Ad-Hoc mode.
+			ECHO Please follow next step to finish setup.
+
+			REM Choose access point name or default
+			SET /p _name=Please input virtual AP name(default: %_name%):
+			IF "%_name%" == "" SET _name=wlan & ECHO Name defaulted to %_name%
+
+			REM Choose access point password or default
+			SET /p _password=Please input password^(required, length: 8~63^):
+			IF "%_password%" == "" SET _name=password & ECHO Password defaulted to %_password%
+
+			REM Set access point settings
+			NETSH wlan set hostednetwork mode=allow ssid=%_name% key=%_password%
+			IF "%ERRORLEVEL%"=="0" ECHO WLAN Setup Successful
+
+			REM Start access point
+			NETSH wlan start hostednetwork
+			IF "%ERRORLEVEL%" == "0" (
+				ECHO WLAN Startup Successful!
+				ECHO Please share an internet connection with virtual WiFi adapter.
+				ECHO (Located in Network Connections)
+			) ELSE ( ECHO Error: WLAN Startup Failed )
+
+		) ELSE ( ECHO Error: Your WiFi adapter doesn't support Ad-Hoc mode^(hostednetwork^) )
 		GOTO :EOF
 
 	:2
@@ -112,7 +122,7 @@ ECHO.
 		NETSH wlan start hostednetwork
 		IF "%ERRORLEVEL%"=="0" (
 			ECHO WLAN startup success, enjoy it!
-		) ELSE ECHO Error: Starting WLAN failed.
+		) ELSE ( ECHO Error: Starting WLAN failed )
 		GOTO :EOF
 
 	:3
@@ -129,12 +139,12 @@ ECHO.
 
 	:5
 	:PASSWORD
-		SET /p _password=Please input the password^(required, length: 8~63^):
+		REM Prompt user for new password and set it
+		SET /p _password=Please input new password^(required, length: 8~63^):
 		NETSH wlan set hostednetwork key=%_password% > nul
 		IF NOT "%ERRORLEVEL%" == "0" (
-			ECHO Error: Changing WLAN password failed.
-			ECHO Please check input and try again.
-		) ELSE ECHO Change WLAN password success!
+			ECHO Error: WLAN password change failed. Please try again.
+		) ELSE ( ECHO WLAN password change success! )
 		GOTO :EOF
 
 	:6
