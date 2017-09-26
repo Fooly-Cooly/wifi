@@ -46,13 +46,14 @@ ECHO.
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	ECHO   ^|      WiFi Sharing Menu     ^|
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	ECHO   ^|  1. Create virtual WLAN    ^|
-	ECHO   ^|  2. Start virtual WLAN     ^|
-	ECHO   ^|  3. Stop virtual WLAN      ^|
-	ECHO   ^|  4. View WLAN connections  ^|
-	ECHO   ^|  5. Change WLAN password   ^|
-	ECHO   ^|  6. Share Connection(ICS)  ^|
-	ECHO   ^|  7. Exit                   ^|
+	ECHO   ^|  1. Create Virtual WLAN    ^|
+	ECHO   ^|  2. Start Virtual WLAN     ^|
+	ECHO   ^|  3. Stop Virtual WLAN      ^|
+	ECHO   ^|  4. View WLAN Connections  ^|
+	ECHO   ^|  5. Change WLAN Name       ^|
+	ECHO   ^|  6. Change WLAN Password   ^|
+	ECHO   ^|  7. Share Connection(ICS)  ^|
+	ECHO   ^|  8. Exit                   ^|
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	ECHO.
 
@@ -67,54 +68,54 @@ ECHO.
 
 	REM Call user chosen label, pause and reshow menu
 	CALL :%SLC% 2>NUL
-	IF "%SLC%" == "7" GOTO :EXIT
+	IF "%SLC%" == "8" GOTO :EXIT
 	PAUSE
 	GOTO :MENU
 
 	:1
 	:CREATE
+	SETLOCAL
 		ECHO.
-		ECHO NOTE:
-		ECHO Only run "Create virtual WLAN" command once if successful.
-		ECHO You needn't run it again unless you want to change the name or password!
-		ECHO.
-		ECHO Check your WIFI adapter...
+		ECHO Checking Ad-Hoc mode support...
 
 		REM Get current language code page
 		FOR /F "tokens=2 delims=:." %%A IN ('CHCP') DO SET CP=%%A
 
 		REM CP 437 = English
-		IF "%CP%" == "437" NETSH wlan show drive | find "Hosted network supported" | find "Yes"
+		IF %CP% == 437 NETSH wlan show drive | find "Hosted network supported" | find "Yes"
 
 		REM CP 936 = Chinese, 
-		IF "%CP%" == "936" NETSH wlan show drive | find "支持的承载网络" | find "是"
+		IF %CP% == 936 NETSH wlan show drive | find "支持的承载网络" | find "是"
 
+		ECHO.
 		IF "%ERRORLEVEL%" == "0" (
-			ECHO Congratulations! Your WiFi adapter supports Ad-Hoc mode.
-			ECHO Please follow next step to finish setup.
-
 			REM Choose access point name or default
-			SET /p _name=Please input virtual AP name(default: %_name%):
-			IF "%_name%" == "" SET _name=wlan & ECHO Name defaulted to %_name%
+			SET /p _name=Please input virtual AP name:
+			IF "%_name%" == "" SET "_name=WiFi Hotspot" & ECHO Name defaulted to !_name!
 
 			REM Choose access point password or default
 			SET /p _password=Please input password^(required, length: 8~63^):
-			IF "%_password%" == "" SET _name=password & ECHO Password defaulted to %_password%
+			IF "%_password%" == "" SET "_password=password" & ECHO Password defaulted to !_password!
+			ECHO.
 
 			REM Set access point settings
-			NETSH wlan set hostednetwork mode=allow ssid=%_name% key=%_password%
-			IF "%ERRORLEVEL%"=="0" ECHO WLAN Setup Successful
+			NETSH wlan set hostednetwork mode=allow ssid="!_name!" key="!_password!"
+			IF "%ERRORLEVEL%" == "0" ECHO WLAN Setup Successful
 
 			REM Start access point
-			NETSH wlan start hostednetwork
+			NETSH wlan start hostednetwork > NUL
 			IF "%ERRORLEVEL%" == "0" (
 				ECHO WLAN Startup Successful!
-				ECHO Please share an internet connection with virtual WiFi adapter.
-				ECHO (Located in Network Connections)
+				ECHO.
+				ECHO NOTE:
+				ECHO   Only run "Create virtual WLAN" command once if successful.
+				ECHO   You needn't run it again unless you want to change the name or password!
+				ECHO   Please share an internet connection with virtual WiFi adapter.
 			) ELSE ( ECHO Error: WLAN Startup Failed )
 
 		) ELSE ( ECHO Error: Your WiFi adapter doesn't support Ad-Hoc mode^(hostednetwork^) )
-		GOTO :EOF
+	ENDLOCAL
+	GOTO :EOF
 
 	:2
 	:START
@@ -122,7 +123,7 @@ ECHO.
 		NETSH wlan start hostednetwork
 		IF "%ERRORLEVEL%"=="0" (
 			ECHO WLAN startup success, enjoy it!
-		) ELSE ( ECHO Error: Starting WLAN failed )
+		) ELSE ( ECHO Error: WLAN startup failed )
 		GOTO :EOF
 
 	:3
@@ -138,6 +139,15 @@ ECHO.
 		GOTO :EOF
 
 	:5
+	:SSID
+		SET /p _name=Please input new name^(required, length: 8~63^):
+		NETSH wlan set hostednetwork ssid=%_name% > nul
+		IF NOT "%ERRORLEVEL%" == "0" (
+			ECHO Error: WLAN name change failed. Please try again.
+		) ELSE ( ECHO WLAN name change success! )
+		GOTO :EOF
+
+	:6
 	:PASSWORD
 		REM Prompt user for new password and set it
 		SET /p _password=Please input new password^(required, length: 8~63^):
@@ -147,7 +157,7 @@ ECHO.
 		) ELSE ( ECHO WLAN password change success! )
 		GOTO :EOF
 
-	:6
+	:7
 	:SHARE
 		REM Runs the internal vbscript to share connections
 		cscript //nologo "%~f0?.wsf" //job:Share
