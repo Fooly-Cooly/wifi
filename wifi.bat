@@ -4,19 +4,24 @@ SETLOCAL EnableExtensions EnableDelayedExpansion
 TITLE WiFi Sharing Menu: Fools Edition
 COLOR 17
 ECHO.
-
-	REM WiFi Sharing Menu for Windows
+	REM ============================================================================
+	REM WiFi Sharing Menu: Fools Edition
+	REM   Create, start and stop a virtual WiFi access point.
+	REM 
+	REM Tested on Windows 7 & 10
 	REM Requires Administrator permissions
-	REM Only tested on Windows 7 & 10(English version)
-	REM This tool can create, start and stop a virtual WiFi access point.
-	REM The virtual WLAN AP can be used with any mobile device, etc.
-	REM Your WIFI adapter must support Ad-Hoc mode(Intel MyWiFi), most support it.
-	REM "Microsoft Virtual WiFi Miniport Adapter" will show in Network Connections
-	REM ^(Run ncpa.cpl in a run/command prompt)
+	REM WIFI adapter must support Ad-Hoc mode/Intel MyWiFi (Support Common).
+	REM "Microsoft Virtual WiFi Miniport Adapter" will show in Network Connections (ncpa.cpl)
+	REM
+	REM Originally created by Kingron <kingron@163.com> (2013)
+	REM Modified and updated by Fooly Cooly (2026)
+	REM
+	REM Licensed under the GNU General Public License v3.0
+	REM https://www.gnu.org/licenses/gpl-3.0.txt
+	REM ============================================================================
 
-	REM Check for admin permissions
 	NET FILE >NUL 2>&1
-	IF NOT "%ERRORLEVEL%" == "0" (
+	IF NOT %ERRORLEVEL% == 0 (
 		ECHO Administrator permission is required^!
 		ECHO Please click [Yes] on the UAC dialog.
 		TIMEOUT 5
@@ -24,21 +29,29 @@ ECHO.
 		GOTO :EXIT
 	)
 
-	REM Display help
+	ECHO Checking Ad-Hoc mode support...
+	FOR /F "tokens=2 delims=:." %%A IN ('CHCP') DO SET CP=%%A
+	NETSH wlan show drivers | find "Hosted network supported" | find "Yes"
+	IF NOT %ERRORLEVEL% == 0 (
+		ECHO Error: WiFi adapter doesn't support Ad-Hoc mode^(hostednetwork^)
+		PAUSE
+		GOTO :EXIT
+	)
+
+	REM Check if input is valid, otherwise display help
 	IF "%~1" == "" GOTO :MENU
 	CALL :%~1 2>NUL
-	IF "%ERRORLEVEL%" == "1" (
+	IF %ERRORLEVEL% == 1 (
 		ECHO Syntax: %~nx0 [Option]
-		ECHO    [create, start, stop, view ,password ,help]
+		ECHO    [setup, ssid, password, start, stop, view , share, help]
 		ECHO.
-
-		ECHO Copyright (C) 2013 Kingron <kingron@163.com>
-		ECHO Modified by Fooly Cooly
+		ECHO Originally created by Kingron <kingron@163.com> (2013)
+		ECHO Modified and updated by Fooly Cooly
 		ECHO Licensed with GPL v3 https://www.gnu.org/licenses/gpl-3.0.txt
 		ECHO.
+		PAUSE
+		GOTO :EXIT
 	)
-	PAUSE
-	GOTO :EXIT
 
 	:MENU
 	REM Show WiFi Sharing Menu
@@ -46,19 +59,19 @@ ECHO.
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	ECHO   ^|      WiFi Sharing Menu     ^|
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	ECHO   ^|  1. Create Virtual WLAN    ^|
-	ECHO   ^|  2. Start Virtual WLAN     ^|
-	ECHO   ^|  3. Stop Virtual WLAN      ^|
-	ECHO   ^|  4. View WLAN Connections  ^|
-	ECHO   ^|  5. Change WLAN Name       ^|
-	ECHO   ^|  6. Change WLAN Password   ^|
+	ECHO   ^|  1. Virtual WLAN Setup     ^|
+	ECHO   ^|  2. Virtual WLAN Name      ^|
+	ECHO   ^|  3. Virtual WLAN Password  ^|
+	ECHO   ^|  4. Virtual WLAN Start     ^|
+	ECHO   ^|  5. Virtual WLAN Stop      ^|
+	ECHO   ^|  6. View WLAN Connections  ^|
 	ECHO   ^|  7. Share Connection(ICS)  ^|
-	ECHO   ^|  8. Exit                   ^|
+	ECHO   ^|  0. Exit                   ^|
 	ECHO   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	ECHO.
 
 	REM If calling a label fails ERRORLEVEL is set to 1 and the below message appears
-	IF "%ERRORLEVEL%" == "1" ECHO Error: Invalid command, please try again.
+	IF %ERRORLEVEL% == 1 ECHO Error: Invalid command, please try again.
 
 	REM Clear the value from last selection
 	CALL SET SLC=
@@ -68,100 +81,69 @@ ECHO.
 
 	REM Call user chosen label, pause and reshow menu
 	CALL :%SLC% 2>NUL
-	IF "%SLC%" == "8" GOTO :EXIT
+	IF "%SLC%" == "0" GOTO :EXIT
 	PAUSE
 	GOTO :MENU
 
 	:1
-	:CREATE
-	SETLOCAL
+	:SETUP
 		ECHO.
-		ECHO Checking Ad-Hoc mode support...
+		REM Set access point settings
+		NETSH wlan set hostednetwork mode=allow >NUL
+		IF !ERRORLEVEL! == 0 ( ECHO WLAN hostednetwork enabled ) ELSE ( ECHO Error: WLAN hostednetwork failed to enable )
 
-		REM Get current language code page
-		FOR /F "tokens=2 delims=:." %%A IN ('CHCP') DO SET CP=%%A
+		CALL :SSID & ECHO.
+		CALL :PASSWORD & ECHO.
+		CALL :START & ECHO.
 
-		REM CP 437 = English
-		IF %CP% == 437 NETSH wlan show drive | find "Hosted network supported" | find "Yes"
-
-		REM CP 936 = Chinese, 
-		IF %CP% == 936 NETSH wlan show drive | find "支持的承载网络" | find "是"
-
-		ECHO.
-		IF "%ERRORLEVEL%" == "0" (
-			REM Choose access point name or default
-			SET /p _name=Please input virtual AP name:
-			IF "%_name%" == "" SET "_name=WiFi Hotspot" & ECHO Name defaulted to !_name!
-
-			REM Choose access point password or default
-			SET /p _password=Please input password^(required, length: 8~63^):
-			IF "%_password%" == "" SET "_password=password" & ECHO Password defaulted to !_password!
-			ECHO.
-
-			REM Set access point settings
-			NETSH wlan set hostednetwork mode=allow ssid="!_name!" key="!_password!"
-			IF "%ERRORLEVEL%" == "0" ECHO WLAN Setup Successful
-
-			REM Start access point
-			NETSH wlan start hostednetwork > NUL
-			IF "%ERRORLEVEL%" == "0" (
-				ECHO WLAN Startup Successful!
-				ECHO.
-				ECHO NOTE:
-				ECHO   Only run "Create virtual WLAN" command once if successful.
-				ECHO   You needn't run it again unless you want to change the name or password!
-				ECHO   Please share an internet connection with virtual WiFi adapter.
-			) ELSE ( ECHO Error: WLAN Startup Failed )
-
-		) ELSE ( ECHO Error: Your WiFi adapter doesn't support Ad-Hoc mode^(hostednetwork^) )
-	ENDLOCAL
+		ECHO NOTE:
+		ECHO   Only run "Virtual WLAN Setup" once, if successful.
+		ECHO   You needn't run it again unless you want to change the name or password!
+		ECHO   Please share an internet connection with virtual WiFi adapter.
 	GOTO :EOF
 
 	:2
-	:START
-		REM Start WiFi AP and check if it errored
-		NETSH wlan start hostednetwork
-		IF "%ERRORLEVEL%"=="0" (
-			ECHO WLAN startup success, enjoy it!
-		) ELSE ( ECHO Error: WLAN startup failed )
-		GOTO :EOF
+	:SSID
+		SET "_name="
+		SET /p _name=Please input virtual WLAN name:
+		IF NOT DEFINED _name SET "_name=WiFi Hotspot" & ECHO Defaulted to !_name!
+		NETSH wlan set hostednetwork ssid="!_name!" >NUL
+		IF !ERRORLEVEL! == 0 ( ECHO WLAN Name Change Successful ) ELSE ( ECHO Error: WLAN Name Change Failed )
+	GOTO :EOF
 
 	:3
+	:PASSWORD
+		SET "_password="
+		SET /p _password=Please input password^(Length: 8~63^):
+		IF NOT DEFINED _password SET "_password=password" & ECHO Defaulted to !_password!
+		NETSH wlan set hostednetwork key="!_password!" >NUL
+		IF !ERRORLEVEL! == 0 ( ECHO WLAN Password Change Successful ) ELSE ( ECHO Error: WLAN Password Change Failed )
+	GOTO :EOF
+
+	:4
+	:START
+		REM Start WiFi AP and check if it errored
+		NETSH wlan start hostednetwork >NUL
+		IF !ERRORLEVEL! == 0 ( ECHO WLAN Startup Successful ) ELSE ( ECHO Error: WLAN Startup Failed )
+	GOTO :EOF
+
+	:5
 	:STOP
 		REM Stop WiFi Access Point
 		NETSH wlan stop hostednetwork
-		GOTO :EOF
+	GOTO :EOF
 
-	:4
+	:6
 	:VIEW
 		REM Show WiFi Access Points
 		NETSH wlan show hostednetwork
-		GOTO :EOF
-
-	:5
-	:SSID
-		SET /p _name=Please input new name^(required, length: 8~63^):
-		NETSH wlan set hostednetwork ssid=%_name% > nul
-		IF NOT "%ERRORLEVEL%" == "0" (
-			ECHO Error: WLAN name change failed. Please try again.
-		) ELSE ( ECHO WLAN name change success! )
-		GOTO :EOF
-
-	:6
-	:PASSWORD
-		REM Prompt user for new password and set it
-		SET /p _password=Please input new password^(required, length: 8~63^):
-		NETSH wlan set hostednetwork key=%_password% > nul
-		IF NOT "%ERRORLEVEL%" == "0" (
-			ECHO Error: WLAN password change failed. Please try again.
-		) ELSE ( ECHO WLAN password change success! )
-		GOTO :EOF
+	GOTO :EOF
 
 	:7
 	:SHARE
 		REM Runs the internal vbscript to share connections
 		cscript //nologo "%~f0?.wsf" //job:Share
-		GOTO :EOF
+	GOTO :EOF
 
 :EXIT
 REM Clean up of settings
@@ -175,10 +157,10 @@ EXIT /B
 <package>
   <job id="Admin">
     <script language="VBScript">
-		File = Left(WScript.ScriptName, Len(WScript.ScriptName) -5)
-		Set UAC = CreateObject("Shell.Application")
-		UAC.ShellExecute "cmd", "/C " & File, "", "runas", 1
-	</script>
+      File = Left(WScript.ScriptFullName, Len(WScript.ScriptFullName) - 5)
+      Set UAC = CreateObject("Shell.Application")
+      UAC.ShellExecute "cmd", "/C """ & File & """", "", "runas", 1
+    </script>
   </job>
   <job id="Share">
     <script language="VBScript">
